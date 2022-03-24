@@ -1,0 +1,38 @@
+---
+- name: "PLAY:1 - GET BGP SUMMARY"
+  gather_facts: False
+  connection: network_cli
+  hosts: test 
+  vars:
+    ansible_user: svc_network
+    ansible_password: "W3th3p30pl3"
+    ansible_become_pass: "%tech^priv$"
+    ansible_network_os: ios
+    ansible_python_interpreter: /usr/bin/python3
+    app_log_paths: "/home/jsumitra/bin"
+
+  tasks:
+    - name: TASK:1 - 'show interface transceivers fact gathering'
+      ios_command:
+        commands: "show interface transceiver"
+      register: "output_ios"
+    - set_fact:
+        bgp_summ: "{{ output_ios.stdout.0 | parse_cli_textfsm('/home/jsumitra/bgp_reporting/ntc-templates/ntc_templates/templates/cisco_ios_show_interface_transceiver.textfsm')}}"
+    - debug:
+       msg: "{{ output_ios.stdout[0] }}"
+
+    - name: "TASK:2 - 'GENERATE REPORTS'"
+      template:
+        src: "/home/jsumitra/light_levels/templates/transceiver.j2"
+        dest: "/home/jsumitra/light_levels/build/{{ inventory_hostname }}.txt"
+    - name: "TASK:3 - ASSEMBLE REPORTING FROM HOST DETAILS"
+      assemble:
+        src: "/home/jsumitra/light_levels/build"  # Directory with files to merge.
+        dest: "/home/jsumitra/light_levels/reports/report.txt"  # Merged output filename.
+    - mail:
+        subject: CMSD BGP Uptime for {{  '%m-%Y' | strftime  }} 
+        body: Here's the BGP status for the month. Any known issues will be replied to by network engineering
+        from: cisco_educator@cmsd.ena.net
+        to: james.sumitra@clevelandmetroschools.org
+        attach: /home/jsumitra/bgp_reporting/reports/report.txt
+        charset: utf8
